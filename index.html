@@ -82,7 +82,7 @@
                        placeholder="Correo electrónico" required>
                 <input type="password" id="passwordInput"
                        class="w-full bg-gray-700 border border-gray-600 text-white text-sm rounded-lg p-3 focus:ring-blue-500 focus:border-blue-500"
-                       placeholder="Contraseña" value="ivan-olmer7777" required>
+                       placeholder="Contraseña" required>
                 <button type="submit" id="loginButton"
                         class="w-full text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:outline-none focus:ring-blue-800 font-medium rounded-lg text-sm px-5 py-3 text-center transition duration-200">
                     Ingresar
@@ -153,18 +153,20 @@
             deleteObject
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
-        // --- Configuración de Firebase (Usando los valores proporcionados) ---
+        // --- Configuración de Firebase (¡Actualizada con tu información!) ---
         const firebaseConfig = {
-            apiKey: "AIzaSyA5721oMTw-b-1j_CtvhjwQJQcS6812WWq",
-            authDomain: "pendientes-55b47.firebaseapp.com",
-            projectId: "pendientes-55b47",
-            storageBucket: "pendientes-55b47.appspot.com", // Usar el formato .appspot.com para Storage
-            messagingSenderId: "637191435019",
-            appId: "1:637191435019:web:d9b833365738cff641680e"
+          apiKey: "AIzaSyA5721oMTw-b-1j_CtvhjwQJQcS6812WWw",
+          authDomain: "pendientes-55b47.firebaseapp.com",
+          projectId: "pendientes-55b47",
+          storageBucket: "pendientes-55b47.firebasestorage.app",
+          messagingSenderId: "637191435019",
+          appId: "1:637191435019:web:d9b833365738cff641680e"
         };
 
         // Definimos el ID del proyecto para las rutas de Firestore/Storage
-        const appId = firebaseConfig.projectId;
+        // Esta variable 'appId' que defines aquí es en realidad el 'projectId'.
+        // Lo mantendré como está ya que tu código depende de él, pero es bueno saberlo.
+        const appId = firebaseConfig.projectId; 
 
         let app, db, auth, storage, currentUserId, tasksCollectionRef;
 
@@ -174,7 +176,7 @@
             'ivandariomejia1987@gmail.com'
         ];
         // La clave debe coincidir con la configurada en Firebase Auth.
-        const SHARED_PASSWORD = 'ivan-olmer7777'; 
+        // const SHARED_PASSWORD = 'ivan-olmer7777'; // Esta constante no se usa, el valor se toma del input.
 
         // --- Datos Iniciales (Tu lista) ---
         const initialTasks = [
@@ -252,15 +254,18 @@
             try {
                 // Intento de iniciar sesión con Email/Password
                 await signInWithEmailAndPassword(auth, email, password);
+                // onAuthStateChanged se encargará de renderizar la app
             } catch (error) {
                 console.error("Error de autenticación:", error.code);
                 let msg = "Error de inicio de sesión. ";
                 if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
                     msg += "Verifica la clave o el correo.";
                 } else if (error.code === 'auth/invalid-email') {
-                     msg += "Formato de correo inválido.";
+                    msg += "Formato de correo inválido.";
                 } else if (error.code === 'auth/network-request-failed') {
                     msg += "Error de red. Revisa tu conexión.";
+                } else if (error.code === 'auth/api-key-not-valid') {
+                     msg += "La clave API de Firebase es inválida. Revisa la configuración.";
                 } else {
                     msg += "Ocurrió un error inesperado. Revisa la consola.";
                 }
@@ -313,6 +318,11 @@
             } catch (error) {
                 console.error("Error al inicializar Firebase:", error);
                 loadingEl.innerHTML = `<p class="text-red-500">Error al conectar con Firebase. Revisa la consola.</p>`;
+                // Si la inicialización falla (por ej. config vacía), el login también fallará.
+                // Es crucial que firebaseConfig sea válido.
+                if (error.message.includes("Firebase: Error (auth/invalid-api-key)")) {
+                    showMessage("Error: La API Key de Firebase es inválida. Revisa la configuración.", true);
+                }
             }
         }
 
@@ -321,6 +331,8 @@
          * Luego, empieza a escuchar cambios en tiempo real.
          */
         async function initializeUserTasksAndListen() {
+            if (!tasksCollectionRef) return; // Salir si la referencia no está definida (login fallido)
+
             try {
                 // 1. Verificar si la colección está vacía
                 const q = query(tasksCollectionRef);
@@ -358,6 +370,8 @@
          * Escucha cambios en la colección de tareas y las renderiza.
          */
         function listenForTasks() {
+            if (!tasksCollectionRef) return; // No hacer nada si no hay referencia
+
             const q = query(tasksCollectionRef);
             
             onSnapshot(q, (snapshot) => {
@@ -390,23 +404,31 @@
             let date;
             
             if (dateInput && typeof dateInput.toDate === 'function') {
+                // Es un Timestamp de Firestore
                 date = dateInput.toDate();
             } 
             else if (typeof dateInput === 'string') {
+                // Es una cadena ISO (de un 'new Date().toISOString()')
                 date = new Date(dateInput);
             } 
             else if (dateInput instanceof Date) {
+                // Ya es un objeto Date
                 date = dateInput;
             } else {
                 return null; 
             }
 
+            // Detectar si es un Timestamp (de Firestore) o un Date (de JS)
+            // Los Timestamps de Firestore no tienen horas/minutos a menos que sean de serverTimestamp
+            // Los 'updates' usan ISOString, así que tendrán hora/minuto
+            const isISOString = typeof dateInput === 'string';
+
             return date.toLocaleDateString('es-ES', {
                 year: 'numeric',
                 month: 'short',
                 day: 'numeric',
-                hour: dateInput.toDate ? undefined : 'numeric', 
-                minute: dateInput.toDate ? undefined : 'numeric' 
+                hour: isISOString ? 'numeric' : undefined, 
+                minute: isISOString ? 'numeric' : undefined 
             });
         }
 
@@ -434,7 +456,8 @@
                 let dueDateHtml = '';
                 if (dueDate) {
                     const formattedDate = formatTaskDate(dueDate);
-                    const dueDateObj = dueDate.toDate(); // Convertir a objeto Date
+                    // Asegurarnos de que dueDate es un objeto Date para comparar
+                    const dueDateObj = (dueDate.toDate) ? dueDate.toDate() : new Date(dueDate); 
                     const todayMidnight = new Date(new Date().setHours(0, 0, 0, 0));
                     const isOverdue = !task.completed && dueDateObj < todayMidnight;
                     
@@ -623,7 +646,14 @@
             
             let dueDate = null;
             if (dueDateValue) {
+                // Importante: El input 'date' da 'YYYY-MM-DD'.
+                // new Date('YYYY-MM-DD') puede tener problemas de zona horaria (un día antes).
+                // Es más seguro construirlo con UTC o especificando los componentes.
                 const [year, month, day] = dueDateValue.split('-').map(Number);
+                // Usar Date.UTC para evitar problemas de zona horaria y almacenar una fecha 'pura'
+                // O simplemente guardar la cadena 'YYYY-MM-DD'
+                // Pero para Timestamps de Firestore, crear un objeto Date es lo correcto.
+                // new Date(year, month - 1, day) creará la fecha a medianoche en la zona horaria LOCAL
                 dueDate = new Date(year, month - 1, day); 
             }
 
@@ -634,7 +664,7 @@
                         completed: false,
                         createdAt: serverTimestamp(),
                         subtasks: [],
-                        dueDate: dueDate, 
+                        dueDate: dueDate, // Guardar el objeto Date
                         updates: [],
                         files: [] 
                     });
@@ -671,6 +701,9 @@
                 if (await showCustomConfirm("¿Estás seguro de que quieres eliminar este pendiente y todas sus actividades?")) {
                     try {
                         const docRef = doc(tasksCollectionRef, mainTaskId);
+                        // Antes de borrar, podríamos querer borrar los archivos de Storage,
+                        // pero por simplicidad, borramos el documento.
+                        // (En una app real, se debe hacer un 'deep delete' de sub-colecciones y archivos)
                         await deleteDoc(docRef);
                     } catch (error) {
                         console.error("Error al eliminar pendiente:", error);
@@ -766,7 +799,7 @@
                         const newUpdate = {
                             id: crypto.randomUUID(),
                             text: updateText,
-                            date: new Date().toISOString() 
+                            date: new Date().toISOString() // Usar ISO string para guardar hora/minuto
                         };
                         const docRef = doc(tasksCollectionRef, mainTaskId);
                         await updateDoc(docRef, {
@@ -885,7 +918,10 @@
                 await deleteObject(fileRef);
             } catch (error) {
                 console.error("Error al eliminar de Storage:", error);
-                // Continuar de todos modos para intentar borrar de Firestore
+                // Si el archivo no existe en Storage, igual intentar borrar de Firestore
+                if (error.code !== 'storage/object-not-found') {
+                     await showCustomConfirm("Error al eliminar el archivo de Storage. La referencia se eliminará de todos modos.", true);
+                }
             }
 
             // 2. Eliminar de Firestore (leyendo, filtrando y escribiendo)
@@ -908,6 +944,7 @@
 
         /**
          * Muestra un modal de confirmación personalizado.
+         * (No usar window.confirm/alert ya que puede ser bloqueado)
          */
         function showCustomConfirm(message, alertOnly = false) {
             return new Promise((resolve) => {
@@ -953,7 +990,6 @@
 
 </body>
 </html>
-
 
 
 
