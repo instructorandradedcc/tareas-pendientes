@@ -153,9 +153,9 @@
             deleteObject
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
 
-        // --- Configuración de Firebase (¡Actualizada con tu información!) ---
+        // --- Configuración de Firebase (Asegúrate que sea la correcta de tu proyecto) ---
         const firebaseConfig = {
-          apiKey: "AIzaSyA5721oMTw-b-1j_CtvhjwQJQcS6812WWw",
+          apiKey: "AIzaSyA5721oMTw-b-1j_CtvhjwQJQcS6812WWw", // <-- Verifica si esta es la API key correcta
           authDomain: "pendientes-55b47.firebaseapp.com",
           projectId: "pendientes-55b47",
           storageBucket: "pendientes-55b47.firebasestorage.app",
@@ -164,8 +164,6 @@
         };
 
         // Definimos el ID del proyecto para las rutas de Firestore/Storage
-        // Esta variable 'appId' que defines aquí es en realidad el 'projectId'.
-        // Lo mantendré como está ya que tu código depende de él, pero es bueno saberlo.
         const appId = firebaseConfig.projectId; 
 
         let app, db, auth, storage, currentUserId, tasksCollectionRef;
@@ -175,9 +173,7 @@
             'instructor.andrade.dcc@gmail.com',
             'ivandariomejia1987@gmail.com'
         ];
-        // La clave debe coincidir con la configurada en Firebase Auth.
-        // const SHARED_PASSWORD = 'ivan-olmer7777'; // Esta constante no se usa, el valor se toma del input.
-
+        
         // --- Datos Iniciales (Tu lista) ---
         const initialTasks = [
             "Parque de florida", "Alcala 3d", "Neli Bolívar", "Mama diana - agua clara",
@@ -297,8 +293,9 @@
                             currentUserId = user.uid;
                             userIdDisplay.textContent = `ID de Usuario: ${currentUserId} | Correo: ${user.email}`;
                             
-                            // Definir la ruta de la colección privada del usuario
-                            const collectionPath = `artifacts/${appId}/users/${currentUserId}/tasks`;
+                            // --- ¡CORRECCIÓN APLICADA AQUÍ! ---
+                            // Apuntamos a la colección pública/compartida.
+                            const collectionPath = `artifacts/${appId}/public/data/shared_tasks`;
                             tasksCollectionRef = collection(db, collectionPath);
                             
                             renderApp(true); // Mostrar app
@@ -320,8 +317,6 @@
             } catch (error) {
                 console.error("Error al inicializar Firebase:", error);
                 loadingEl.innerHTML = `<p class="text-red-500">Error al conectar con Firebase. Revisa la consola.</p>`;
-                // Si la inicialización falla (por ej. config vacía), el login también fallará.
-                // Es crucial que firebaseConfig sea válido.
                 if (error.message.includes("Firebase: Error (auth/invalid-api-key)")) {
                     showMessage("Error: La API Key de Firebase es inválida. Revisa la configuración.", true);
                 }
@@ -420,9 +415,6 @@
                 return null; 
             }
 
-            // Detectar si es un Timestamp (de Firestore) o un Date (de JS)
-            // Los Timestamps de Firestore no tienen horas/minutos a menos que sean de serverTimestamp
-            // Los 'updates' usan ISOString, así que tendrán hora/minuto
             const isISOString = typeof dateInput === 'string';
 
             return date.toLocaleDateString('es-ES', {
@@ -458,7 +450,6 @@
                 let dueDateHtml = '';
                 if (dueDate) {
                     const formattedDate = formatTaskDate(dueDate);
-                    // Asegurarnos de que dueDate es un objeto Date para comparar
                     const dueDateObj = (dueDate.toDate) ? dueDate.toDate() : new Date(dueDate); 
                     const todayMidnight = new Date(new Date().setHours(0, 0, 0, 0));
                     const isOverdue = !task.completed && dueDateObj < todayMidnight;
@@ -493,7 +484,6 @@
 
                 // --- Renderizar Avances (Updates) ---
                 const updates = task.updates || [];
-                // Ordenar avances por fecha, más reciente primero
                 updates.sort((a, b) => new Date(b.date) - new Date(a.date));
 
                 const updatesHtml = updates.map(up => `
@@ -506,7 +496,6 @@
                 // --- Renderizar Archivos Adjuntos ---
                 const files = task.files || [];
                 const filesHtml = files.map(file => {
-                    // Tipos comunes de archivos que podrían ser útiles visualizar
                     const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.name); 
                     const is3DModel = /\.(obj|stl|gltf|glb)$/i.test(file.name);
 
@@ -648,14 +637,7 @@
             
             let dueDate = null;
             if (dueDateValue) {
-                // Importante: El input 'date' da 'YYYY-MM-DD'.
-                // new Date('YYYY-MM-DD') puede tener problemas de zona horaria (un día antes).
-                // Es más seguro construirlo con UTC o especificando los componentes.
                 const [year, month, day] = dueDateValue.split('-').map(Number);
-                // Usar Date.UTC para evitar problemas de zona horaria y almacenar una fecha 'pura'
-                // O simplemente guardar la cadena 'YYYY-MM-DD'
-                // Pero para Timestamps de Firestore, crear un objeto Date es lo correcto.
-                // new Date(year, month - 1, day) creará la fecha a medianoche en la zona horaria LOCAL
                 dueDate = new Date(year, month - 1, day); 
             }
 
@@ -703,9 +685,6 @@
                 if (await showCustomConfirm("¿Estás seguro de que quieres eliminar este pendiente y todas sus actividades?")) {
                     try {
                         const docRef = doc(tasksCollectionRef, mainTaskId);
-                        // Antes de borrar, podríamos querer borrar los archivos de Storage,
-                        // pero por simplicidad, borramos el documento.
-                        // (En una app real, se debe hacer un 'deep delete' de sub-colecciones y archivos)
                         await deleteDoc(docRef);
                     } catch (error) {
                         console.error("Error al eliminar pendiente:", error);
@@ -847,8 +826,9 @@
          * Maneja la subida de un archivo a Firebase Storage
          */
         function handleFileUpload(file, taskId, progressContainer, progressBar, statusText, fileInput, uploadButton) {
-            // artifacts/{appId}/users/{userId}/{taskId}/{fileName}
-            const storagePath = `artifacts/${appId}/users/${currentUserId}/${taskId}/${file.name}`;
+            // --- ¡CORRECCIÓN APLICADA AQUÍ! ---
+            // Guardamos los archivos en una carpeta pública también, pero organizada por QUIÉN la subió
+            const storagePath = `artifacts/${appId}/public/shared_files/${currentUserId}/${taskId}/${file.name}`;
             const storageRef = ref(storage, storagePath);
             const uploadTask = uploadBytesResumable(storageRef, file);
 
@@ -920,7 +900,6 @@
                 await deleteObject(fileRef);
             } catch (error) {
                 console.error("Error al eliminar de Storage:", error);
-                // Si el archivo no existe en Storage, igual intentar borrar de Firestore
                 if (error.code !== 'storage/object-not-found') {
                      await showCustomConfirm("Error al eliminar el archivo de Storage. La referencia se eliminará de todos modos.", true);
                 }
@@ -946,7 +925,6 @@
 
         /**
          * Muestra un modal de confirmación personalizado.
-         * (No usar window.confirm/alert ya que puede ser bloqueado)
          */
         function showCustomConfirm(message, alertOnly = false) {
             return new Promise((resolve) => {
@@ -992,6 +970,7 @@
 
 </body>
 </html>
+
 
 
 
