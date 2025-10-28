@@ -266,6 +266,8 @@
                     msg += "Error de red. Revisa tu conexión.";
                 } else if (error.code === 'auth/api-key-not-valid') {
                      msg += "La clave API de Firebase es inválida. Revisa la configuración.";
+                } else if (error.code === 'auth/configuration-not-found') {
+                     msg += "El inicio de sesión por Correo/Clave no está habilitado en Firebase.";
                 } else {
                     msg += "Ocurrió un error inesperado. Revisa la consola.";
                 }
@@ -990,6 +992,7 @@
 
 </body>
 </html>
+
 
 
 
